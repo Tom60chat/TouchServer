@@ -13,23 +13,19 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
+using System.Threading;
+using ToucheServer.Server;
 
 namespace ControlPanel
 {
     public partial class MainForm : Form
     {
 
-        private System.Diagnostics.Process run;
+        private Process run;
         private bool running = false;
 
-        /**
-        [DllImport("ServiceDll.Dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void Start();
-
-        [DllImport("ServiceDll.Dll", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void Stop();
-
-        */
+        Thread ServerThread;
+        Thread EchoThread;
 
         public MainForm()
         {
@@ -89,7 +85,21 @@ namespace ControlPanel
             {
                 try
                 {
-                    run = Process.Start("TouchServer.exe");
+                    ServerThread = new Thread(new ThreadStart(TsServer.ServerThread));
+                    if (checkBoxEchoIP.Checked)
+                        EchoThread = new Thread(new ThreadStart(TsServer.EchoThread));
+                    else
+                        EchoThread = new Thread(() => TsServer.EchoThreadA(new IPv4
+                        {
+                            s_b1 = Convert.ToByte(txtEchoIP1.Text),
+                            s_b2 = Convert.ToByte(txtEchoIP2.Text),
+                            s_b3 = Convert.ToByte(txtEchoIP3.Text),
+                            s_b4 = Convert.ToByte(txtEchoIP4.Text)
+                        }));
+
+                    ServerThread.Start();
+                    EchoThread.Start();
+
                     this.lblStatus.Text = "Server is Running";
                     running = true;
 
@@ -97,7 +107,6 @@ namespace ControlPanel
                 catch (Exception ex)
                 {
                     this.lblStatus.Text = "Failed to Start:" + ex.ToString();
-
                 }
             }
            
@@ -108,7 +117,9 @@ namespace ControlPanel
             {
                 try
                 {
-                    run.Kill();
+                    ServerThread.Abort();
+                    EchoThread.Abort();
+
                     this.lblStatus.Text = "Server is NOT Running";
                     running = false;
 
@@ -133,6 +144,11 @@ namespace ControlPanel
             {
                 run.Kill();
             }
+        }
+
+        private void checkBoxEchoIP_CheckedChanged(object sender, EventArgs e)
+        {
+            tableLayoutPanelEchoIP.Enabled = !checkBoxEchoIP.Checked;
         }
     }
 }
